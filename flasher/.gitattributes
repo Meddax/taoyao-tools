@@ -1,0 +1,8 @@
+# Windows files of the kernel flasher: keep their bytes (CRLF, UTF-8 BOM) as they are
+run-flash.bat -text
+run-flash.ps1 -text
+README-flash-ru.txt -text
+CHANGELOG-flash-ru.txt -text
+LICENSE-flash.txt -text
+# the Linux and macOS script must stay LF
+run-flash.sh text eol=lf

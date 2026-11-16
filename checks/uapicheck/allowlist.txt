@@ -1,0 +1,121 @@
+# uapicheck allowlist: differences between the 5.4 headers (ref/5.4.txt) and
+# the 6.12 tree, each with the reason it is accepted.
+#
+#   KIND[@arch]  KEY[|KEY...]  STATUS  REASON
+#
+# Columns are separated by two or more spaces (or a tab).
+#
+# KIND  IOC DEF ENUM (one namespace: an ioctl #define that 6.12 turned into an
+#       enumerator is the same name), SIZE ALIGN OFF FSIZE BITW, or * for all
+# KEY   fnmatch pattern on the name; struct members are "struct x.member",
+#       "struct x|struct x.*" covers a whole struct
+# STATUS
+#   ok     intended or harmless (the reason says why)
+#   known  a real difference that still needs a fix: the check passes and
+#          prints it as a warning, so it stays visible until the fix lands
+#   =NAME  renamed: the 5.4 value of KEY must be the 6.12 value of NAME
+#          (=.member for another member of the same struct); checked, a
+#          mismatch fails
+# A rule that matches no difference any more is reported (remove it).
+
+# ---- terminators of append-only enums: they grow with every new member;
+# the members themselves are compared one by one
+ENUM  *_MAX|*_AFTER_LAST|*_LAST|NUM_*|MAX_NL80211_*|__*_AFTER_LAST  ok  enum terminator: grows with new members, every 5.4 member is checked on its own
+DEF   IPA_CLIENT_MAX|IPA_HW_MAX|IPA_HDR_PROC_MAX|IPA_EVENT_MAX|IPA_EVENT_MAX_NUM  ok  enum terminator (#define): new IPA clients, HW versions, proc types and events appended
+DEF   KGSL_PERFCOUNTER_GROUP_MAX|AUDIO_MAX_COMMON_IOCTL_NUM|V4L2_CID_LASTP1  ok  terminator: new perfcounter groups / common audio ioctls / V4L2 controls appended
+DEF   FASTRPC_MAX_ATTRIBUTES  ok  count of DSP capability attributes (FASTRPC_IOCTL_GET_DSP_INFO): two appended in K, libadsprpc only asks for ids below the 5.4 count
+ENUM  QCA_WLAN_802_11_MODE_INVALID|QCA_WLAN_VENDOR_ATTR_CONCURRENT_STA_POLICY_INVALID  ok  sentinel value after the real members (11BE added before it), never sent
+
+# ---- same bits, other C type
+DEF   DRM_FORMAT_BIG_ENDIAN  ok  (1<<31) in 5.4, (1U<<31) in 6.12: the same bit
+ENUM  QCA_WLAN_VENDOR_CHANNEL_PROP_FLAG_HE40INTOL  ok  1 << 31 vs 1U << 31: the same bit
+
+# ---- renamed, value checked
+ENUM  V4L2_MPEG_VIDEO_BITRATE_MODE_CQ  =V4L2_MPEG_MSM_VIDC_BITRATE_MODE_CQ  the msm CQ (5) is V4L2_MPEG_MSM_VIDC_BITRATE_MODE_CQ in 6.12; upstream's CQ (2) is not used by msm_venc, which keeps 2 = CBR_VFR
+ENUM  QCA_WLAN_VENDOR_ATTR_CONFIG_MODULATED_DTIM  =QCA_WLAN_VENDOR_ATTR_CONFIG_DYNAMIC_DTIM  same attribute (1), renamed
+ENUM  QCA_WLAN_VENDOR_ATTR_TDLS_NEW_STATE  =QCA_WLAN_VENDOR_ATTR_TDLS_STATE_NEW_STATE  same attribute (2), renamed
+
+# ---- IPA / WAN / rmnet: compared with ref/5.4-los.txt (units.conf ref =
+# los), the LineageOS 5.4 kernel headers the Evolution X and crDroid ipacm is
+# built with (taoyao54 = skglab lineage-23.2; EvoX arunika / taoyao-labs
+# lineage-24.0 and evoxdev cnb carry the same three IPA headers). techpack/
+# dataipa restores this layout for taoyao behind CONFIG_MACH_XIAOMI_TAOYAO;
+# stock HyperOS (ref/5.4.txt, older layout) is translated by ipam
+# uapi_stock=1 (`check --unit-ref ipa=st` lists what that has to convert).
+# What is left below is 5.4 UAPI that no taoyao userspace uses: the
+# LA.UM.9.14 ipacm/libipanat (data-ipa-cfg-mgr lineage-23.2-legacy-um, the
+# same on EvoX and crDroid) issues only ADD/DEL/MDFY/COMMIT/RESET HDR, RT,
+# FLT (v1 and v2), PROC_CTX, COPY/GET HDR, QUERY_INTF*, GENERATE_FLT_EQ,
+# QUERY_EP_MAPPING, QUERY_RT_TBL_INDEX, WRITE_QMAPID, QUERY_WLAN_CLIENT,
+# GET_HW_VERSION, GET_HW_FEATURE_SUPPORT, FNR_COUNTER_ALLOC,
+# SET_FNR_COUNTER_INFO, the NAT ioctls, RM_ADD/DEL_DEPENDENCY, CLEANUP and
+# the WAN ioctls ADD_FLT_RULE(_EX/_INDEX), ADD/RMV_OFFLOAD_CONNECTION,
+# GET_WAN_MTU, NOTIFY_WAN_STATE, QUERY_TETHER_STATS_ALL, RESET_TETHER_STATS,
+# SET_DATA_QUOTA, SET_TETHER_CLIENT_PIPE (all identical to LOS now).
+*     IPA_IOCTL_QUERY_CACHED_DRIVER_MSG|IPA_IOC_QUERY_CACHED_DRIVER_MSG|IPA_IOCTL_FLT_MEM_PERIPHERAL_SET_PRIO_HIGH|IPA_IOC_FLT_MEM_PERIPHERAL_SET_PRIO_HIGH  ok  newer-CLO ioctls the LA.UM.9.14 ipacm does not issue; K has no handler (-ENOTTY, as for a 5.4 kernel without them)
+*     IPA_IOCTL_ADD_DEL_DSCP_PCP_MAPPING|IPA_IOC_ADD_DEL_DSCP_PCP_MAPPING|IPA_UC_MAX_DSCP_VAL|struct ipa_ioc_dscp_pcp_map_info|struct ipa_ioc_dscp_pcp_map_info.*  ok  DSCP<->PCP uC table (IPA 5.x ethernet bridging): not issued by the LA.UM.9.14 ipacm, no handler in K (-ENOTTY)
+*     IPA_IOCTL_SEND_VLAN_MUXID_MAPPING|IPA_IOC_SEND_VLAN_MUXID_MAPPING|IPA_IOCTL_SEND_TUNNEL_TEMPLATE_INFO|IPA_IOC_SEND_TUNNEL_TEMPLATE_INFO|IPA_IOCTL_QUERY_TUNNEL_FEATURE|IPA_IOC_QUERY_TUNNEL_FEATURE|MAX_VLAN_CONFIGURE|MAX_TEMPLATE_SIZE|MAX_TUNNEL_SUPPORT|DEFAULT_FEATURE|SINGLE_TAG_FEATURE|DOUBLE_TAG_FEATURE|UNTAG_FEATURE|SW_PATH|SW_PATH_ADJ_L2_EXCEPTION|HW_PATH_OUTSIDE_TUNNEL|HW_PATH_INSIDE_TUNNEL|HW_PATH_ADJ_L2_*|struct ipa_ioc_mux_mapping_table|struct ipa_ioc_mux_mapping_table.*|struct singletag_mux_map*|struct singletag_mux_map*.*|struct doubletag_mux_mapping_table_t|struct doubletag_mux_mapping_table_t.*|struct untag_pkt_config_t|struct untag_pkt_config_t.*|struct tunnel_protocols_config_table_t|struct tunnel_protocols_config_table_t.*|struct ipa_ioc_tunnel_template_info|struct ipa_ioc_tunnel_template_info.*  ok  EoGRE/MPLSoGRE VLAN-muxid and tunnel-template uC offload (IPA 5.x): not issued by the LA.UM.9.14 ipacm, no handler in K (-ENOTTY)
+*     IPA_IOCTL_ADD_IPOGRE_MAPPING|IPA_IOC_ADD_IPoGRE_MAPPING|MAX_FLOW_PER_IPOGRE_TUNNEL|struct ipa_ioc_ipogre_info|struct ipa_ioc_ipogre_info.*|struct ipa_ipogre_flow_info|struct ipa_ipogre_flow_info.*|struct ipa_ipogre_tunnel_info|struct ipa_ipogre_tunnel_info.*  ok  IP-over-GRE offload (IPA 5.x): not issued by the LA.UM.9.14 ipacm, no handler in K (-ENOTTY); its proc types and event are numbered as in 5.4 for taoyao
+*     IPA_IOC_ADD_EoGRE_MAPPING|IPA_IOC_DEL_EoGRE_MAPPING|IPA_GRE_MAX_S_VLAN|IPA_MAX_EXCEPTIONS|IPA_FLT_EXT_MPLS_GRE_GENERAL|struct IpaDscpVlanPcpMap_t|struct IpaDscpVlanPcpMap_t.*|struct ipa_ipgre_info|struct ipa_ipgre_info.*|struct ipa_ioc_eogre_info|struct ipa_ioc_eogre_info.*|struct ipa_exception|struct ipa_exception.*  ok  EoGRE with the newer MPLSoGRE/exception-list layout (652 vs K's 132 bytes, so the size-encoded ioctl numbers differ and a 5.4 caller gets -ENOTTY): not issued by the LA.UM.9.14 ipacm, EoGRE is an IPA 5.x feature (yupik is v4.11); ipa_rule_attrib carries the 5.4 fld_val_eq member for its size, K never acts on it
+*     IPA_IOCTL_SET_EXT_ROUTER_MODE|IPA_IOC_SET_EXT_ROUTER_MODE|IPA_PREFIX_MAPPING_MAX|struct ipa_ioc_ext_router_info|struct ipa_ioc_ext_router_info.*  ok  prefix-delegation extended router mode: 5.4 nr 95 with 584 bytes, K nr 97 with 68 bytes (different numbers, nothing is misdispatched: K's nr 95 is SET_CONN_TRACK_EXC_RT_TBL_IDX, _IOW 4 bytes); not issued by the LA.UM.9.14 ipacm
+ENUM  IPA_CLIENT_WLAN2_PROD1|IPA_CLIENT_WLAN3_PROD1|IPA_CLIENT_Q6_DL_NLO_ETH_DATA_PROD|IPA_CLIENT_APPS_WAN_ETH_PROD  ok  newer-CLO client ids (16, 40, 126, 128; K: reserved, reserved, reserved, IPSEC_DECAP_PROD): the LA.UM.9.14 ipacm does not name them and K maps none of them to a yupik (IPA v4.11) endpoint, so neither side sends them
+ENUM  IPA_IP_v4_VLAN|IPA_IP_v6_VLAN|IPA_IP_MAX_WLAN  ok  values after IPA_IP_MAX that only newer ipacm VLAN code uses internally; never passed to the kernel (VALID_IPA_IP_TYPE stops at IPA_IP_MAX)
+*     IPA_HDR_L2_ETHERNET_II_AST|IPA_HDR_L2_802_1Q_AST|IPA_HDR_L2_MAX  ok  WDS/EasyMesh AST header types (4, 5): the LA.UM.9.14 ipacm only uses IPA_HDR_L2_MAX to size per-type flags, K reports types 0..3 in the interface properties and rejects 4/5 in ADD_HDR
+ENUM  IPA_VLAN_IF_WLAN  ok  5 is IPA_VLAN_IF_NCM in K (same value, other name); IPA_IOC_GET_VLAN_MODE is not issued by the LA.UM.9.14 ipacm
+DEF   IPA_ETH_API_VER  ok  version of the in-kernel ipa_eth offload API (K: 1 in ipa_common_i.h, not in the UAPI header); not a userspace ABI
+# QMI messages between the AP and the modem only (TLV-encoded with the
+# kernel's own ei tables, no ioctl carries them)
+*     DATA_IC_TYPE_ETH_V01|IPA_QMI_ETH_HW_*|QMI_IPA_MAX_RMNET_ETH_INFO_V01|QMI_IPA_RMNET_ETH_INFO_INDICATION_V01|IPA_RMNET_ETH_INFO_INDICATION_MSG_V01_MAX_MSG_LEN|struct ipa_rmnet_eth_info_*|struct ipa_rmnet_eth_info_*.*|struct ipa_indication_reg_req_msg_v01|struct ipa_indication_reg_req_msg_v01.*|QMI_IPA_ETH_BACKHAUL_INFO_*_V01|IPA_ETH_BACKHAUL_INFO_RESP_MSG_V01_MAX_MSG_LEN|struct ipa_eth_backhaul_info_resp_msg_v01|struct ipa_eth_backhaul_info_resp_msg_v01.*  ok  QMI between the AP and the modem only (rmnet_eth MAC indication, dual-backhaul request/response, ETH HW config): K's ei tables encode its own structs; WAN_IOC_NOTIFY_DUAL_BACKHAUL_INFO keeps its 5.4 number (22) for taoyao but has no handler
+# the WAN_IOC_ADD_FLT_RULE(_EX/_INDEX), _ADD_UL_FLT_RULE, _ADD/RMV_OFFLOAD_CONNECTION
+# ioctls and wan_ioctl_query_dl_filter_stats carry v01 structs from ipacm, so
+# only the four messages below (AP <-> modem only) are accepted, by name
+*     QMI_IPA_INIT_MODEM_DRIVER_REQ_MAX_MSG_LEN_V01|QMI_IPA_SET_DATA_USAGE_QUOTA_REQ_MAX_MSG_LEN_V01|QMI_IPA_STOP_DATA_USAGE_QUOTA_REQ_MAX_MSG_LEN_V01|QMI_IPA_DATA_USAGE_QUOTA_REACHED_IND_MAX_MSG_LEN_V01|struct ipa_init_modem_driver_req_msg_v01|struct ipa_init_modem_driver_req_msg_v01.*|struct ipa_set_data_usage_quota_req_msg_v01|struct ipa_set_data_usage_quota_req_msg_v01.*|struct ipa_stop_data_usage_quota_req_msg_v01|struct ipa_stop_data_usage_quota_req_msg_v01.*|struct ipa_data_usage_quota_reached_ind_msg_v01|struct ipa_data_usage_quota_reached_ind_msg_v01.*  ok  QMI messages between the AP and the modem only (init modem driver, data-usage quota set/stop/reached): TLV-encoded with the kernel's own ei tables, no ioctl carries them
+# rmnet (msm_rmnet.h, include/uapi/linux): the RMNET_IOCTL_* users are the
+# prebuilt netmgrd / qti / libdsi_netctrl blobs, the same on all three ROMs;
+# K keeps the stock header (24-byte rmnet_ioctl_extended_s)
+*     RMNET_IOCTL_SET_ETH_VLAN|RMNET_IOCTL_ADD_MUX_CHANNEL_v2|RMNET_IOCTL_GET_EPID_ETH|RMNET_IOCTL_GET_EP_PAIR_ETH|RMNET_IOCTL_FEAT_ETH_PDU|RMNET_IOCTL_EGRESS_FORMAT_IP_ROUTE|RMNET_IOCTL_INGRESS_FORMAT_IP_ROUTE|MAC_ADDR_SIZE|RMNET_EGRESS_ETH_DATA|RMNET_EGRESS_MAX  ok  rmnet-over-ethernet (ETH PDU) extended ioctls of the newer CLO header: rmnet_ipa.c implements none of them (-EINVAL), stock HyperOS's header (and K's) has none
+*     struct rmnet_ioctl_extended_s|struct rmnet_ioctl_extended_s.*  ok  32 bytes in the LOS header only because of u.rmnet_mux_val_v2 (RMNET_IOCTL_ADD_MUX_CHANNEL_v2, not implemented); every other member is at the same offset and K copies 24 bytes in and out, which neither overreads nor overwrites a 24- or 32-byte caller struct
+
+# ---- display: the vendor composer speaks the lahaina display UAPI.
+# techpack/display/msm/sde/sde_uapi_lahaina.[ch] (CONFIG_DRM_SDE_LAHAINA_UAPI)
+# takes the lahaina-sized blobs and pins their offsets with static_assert.
+SIZE  struct drm_msm_igc_lut|struct drm_msm_pgc_lut|struct drm_msm_sixzone|struct drm_msm_dither|struct drm_msm_rc_mask_cfg  ok  translated: sde_uapi_lahaina.c takes the lahaina blob (0xc18, 0x1808, 0xc20, 0x60, 0x5558 bytes = the 5.4 sizes) and zero-fills the fields added since
+SIZE  struct sde_drm_scaler_v2|struct sde_drm_roi_v1  ok  translated: sde_uapi_copy_scaler_v2/roi_v1 copy the lahaina length (0x1a8 / 0x24 = the 5.4 sizes)
+*     struct drm_msm_ltm_stats_data|struct drm_msm_ltm_stats_data.*|LTM_BLOCK_SIZE  ok  translated: with CONFIG_DRM_SDE_LAHAINA_UAPI the LTM stats tail is written with init_h[2] (sde_uapi_lahaina.h, 0x45c0 = the 5.4 size)
+*     SDE_MAX_DS_COUNT|struct sde_drm_dest_scaler_cfg|struct sde_drm_dest_scaler_data|struct sde_drm_dest_scaler_data.*  ok  no destination scaler on yupik (no qcom,sde-dest-scaler-* in the stock or K device tree), the property is never created
+SIZE  struct drm_msm_dem_cfg|struct drm_msm_spr_init_cfg  ok  no demura or SPR block on yupik (stock and K device trees), the properties are never created
+*     DRM_IOCTL_MSM_GEM_SUBMIT|DRM_IOCTL_MSM_GET_PARAM|struct drm_msm_gem_submit|struct drm_msm_param|struct drm_msm_wait_fence.*|MSM_BO_FLAGS|MSM_PREP_FLAGS|MSM_SUBMIT_FLAGS|MSM_SUBMIT_BO_FLAGS  ok  freedreno (Adreno over DRM) part of msm_drm.h: neither the 5.4 nor the 6.12 SDE driver registers these ioctls (msm_drv.c), the GPU is driven through kgsl
+*     SDE_PIX_FMT_*|V4L2_CID_SDE_ROTATOR_*|VIDIOC_?_SDE_ROTATOR_*|struct msm_sde_rotator_*  ok  v4l2 SDE rotator (msm_sde_rotator.h): yupik has no offline rotator node in the stock device tree, the composer rotates inline
+
+# ---- camera
+*     OPE_MAX_STRIPES|struct ope_*  ok  OPE (offline processing engine) is not on yupik: yupikcameraconf.h has no CONFIG_SPECTRA_OPE
+SIZE  struct cam_flash_query_cap_info  ok  flash_type appended (28 -> 32); cam_flash_dev.c copies the 28-byte 5.4 layout when cam_control.size says so
+
+# ---- audio
+*     IOCTL_GET_AVTIMER_TICK|MAJOR_NUM  ok  /dev/avtimer: the stock 5.4 kernel does not build it either (no avtimer in the stock q6_dlkm.ko)
+
+# ---- compress offload (QC extensions now in techpack/audio/asoc/compress_ext.h)
+DEF   SND_AUDIOCODEC_MAX  ok  upstream max (16) in 6.12; the compress core takes the QC ids up to 0x100B for taoyao (sound/core/compress_offload.c snd_compress_check_input)
+DEF   SNDRV_COMPRESS_VERSION  ok  protocol version 0.2.2 -> 0.3.0 (upstream); tinycompress does not compare it
+*     struct snd_codec.reserved|struct snd_codec_desc.reserved  ok  upstream carved new members out of reserved[], the struct sizes (and SET_PARAMS / GET_CODEC_CAPS numbers) are the same; a 5.4 HAL leaves them 0
+*     struct snd_compr_audio_info|struct snd_compr_audio_info.*  ok  not used by the 5.4 drivers either (no reference in taoyao-stock techpack/audio)
+*     SNDRV_COMPRESS_LEGACY_LATENCY_MODE|SNDRV_COMPRESS_LOW_LATENCY_MODE  ok  values of SNDRV_COMPRESS_LATENCY_MODE that only the 5.4 transcode-loopback (HDMI/DP) driver read
+*     SND_AUDIOCODEC_*PASS_THROUGH|SND_AUDIOCODEC_DTS_LBR|SND_AUDIOCODEC_DTS_TRANSCODE_LOOPBACK|SNDRV_COMPRESS_RENDER_MODE_TTP  ok  HDMI/DP passthrough, DTS transcode and TTP rendering: no such output on taoyao
+
+# ---- NFC: stock used the QTI nfc driver, K the NXP one (techpack/nfc), NFC works on the phone
+*     COLD_RESET_*|NCI_*_LEN|MAX_BUFFER_SIZE|NFC_CHIP_TYPE_OFF|NFC_FW_HDR_LEN|NFC_FW_MAJOR_OFF|NFC_ROM_VERSION_OFF|WAKEUP_SRC_TIMEOUT|PLATFORM_IF_I3C|NFCC_SN100_A|NFCC_SN100_B|NFCC_NOT_SUPPORTED  ok  constants internal to the 5.4 QTI driver, not part of the /dev/nq-nci ioctl ABI
+ENUM  ESE_COLD_RESET|ESE_POWER_STATE  known  ESE_SET_PWR arguments: 5.4 COLD_RESET=2 POWER_STATE=3, K POWER_STATE=2; on taoyao K maps the 5.4 values 2 (cold reset) and 3 (state) at the ioctl boundary while a QTI-HAL session is open (techpack/nfc/nfc/common.c qti_ese_args)
+
+# ---- securemsm
+*     QCOTA_*|struct qce_f8_*|struct qce_f9_req|struct qce_f8_*.*  ok  qcota (/dev/qcota0) is built neither in stock (no CONFIG_CRYPTO_DEV_QCOTA in its ikconfig) nor in K
+*     QSEECOM_TA_ION_ALLOCATE_*  ok  driver tunables that sat in the 5.4 UAPI header
+*     struct qseecom_send_resp_req|struct qseecom_send_resp_req.*  ok  unused: QSEECOM_IOCTL_SEND_RESP_REQ is _IO (no argument) and the 5.4 qseecom.c never reads this struct
+
+# ---- touch: struct xiaomi_touch_interface is the interface between the
+# touch drivers and xiaomi_touch.ko, not the /dev/xiaomi-touch ioctl ABI
+*     struct xiaomi_touch_interface|struct xiaomi_touch_interface.*  ok  kernel-internal (driver <-> xiaomi_touch.ko), carried by no ioctl
+
+# ---- upstream evolution of shared UAPI (backwards compatible by design)
+ENUM  NL80211_ATTR_HE_6GHZ_CAPABILITY  ok  6 GHz attribute: the 5.4 ACK backport numbered it 289, upstream (and wpa_supplicant's nl80211_copy.h) 293 as 6.12 does; taoyao has no 6 GHz radio
+*     struct v4l2_create_buffers.*|struct v4l2_fmtdesc.*|struct v4l2_requestbuffers.*  ok  upstream carved new members out of reserved[] (same struct sizes)
+*     struct v4l2_meta_format|struct v4l2_format.fmt.meta  ok  upstream grew v4l2_meta_format inside the 200-byte v4l2_format.fmt union (v4l2_format keeps its size)

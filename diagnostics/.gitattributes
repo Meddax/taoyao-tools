@@ -1,0 +1,9 @@
+# Windows files of the log collector: keep their bytes (CRLF, UTF-8 BOM) as they are
+run-check.bat -text
+run-check.ps1 -text
+README-ru.txt -text
+# the device and Linux scripts must stay LF
+taoyao-check.sh text eol=lf
+run-check.sh text eol=lf
+LICENSE.txt -text
+CHANGELOG-ru.txt -text

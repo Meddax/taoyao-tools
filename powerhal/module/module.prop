@@ -1,0 +1,6 @@
+id=taoyao_powerhint612
+name=taoyao: powerhint.json для ядра 6.12
+version=v1.2
+versionCode=120
+author=Meddax и MeruDevTools
+description=Подменяет /vendor/etc/powerhint.json версией для ядра 6.12 (Evolution X 16 и crDroid 16). На ядре taoyao 0.20 и новее не обязателен: нужен для точных частот CPU и GPU. На других ядрах и прошивках ничего не делает. Состояние: /data/adb/modules/taoyao_powerhint612/status.txt

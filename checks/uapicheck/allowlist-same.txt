@@ -1,0 +1,9 @@
+# uapicheck allowlist for `same` (the redwood CI leg): differences between
+# the unpatched 6.12 base (git HEAD of the CI checkout) and the tree with
+# port-6.12/patches applied, both seen through redwood_defconfig. The
+# redwood ROM is built against the base headers, so every value it can see
+# must stay as it is; taoyao-only ABI goes behind CONFIG_MACH_XIAOMI_TAOYAO /
+# TARGET_PRODUCT_TAOYAO. Format as in allowlist.txt (columns separated by two
+# or more spaces). Additions are not checked.
+
+*     struct xiaomi_touch_interface|struct xiaomi_touch_interface.*  ok  kernel-internal (touch drivers <-> xiaomi_touch.ko, both built from this tree), carried by no ioctl
